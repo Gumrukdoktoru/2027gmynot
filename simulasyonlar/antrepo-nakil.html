@@ -1,0 +1,1091 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+</head>
+<body>
+<title>Antrepo Nakil Simülatörü</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: one-screen console — 3D depot yard as the stage, a case-file panel beside it (below it on phones) */
+:root{
+  --bg:#E8ECEA; --panel:#FAFBFA; --sunk:#EEF2F0; --ink:#15201C; --muted:#55625D; --line:#C8D1CD;
+  --accent:#E3A60B; --accent-ink:#1B1404; --ok:#1D7849; --err:#AE2A1F; --focus:#1F5FBF;
+  --tA:#2F6DB3; --tB:#7B4EA6; --tC:#2C8A55; --tD:#178A8A;
+  --scene-sky:#DCE5E9; --scene-ground:#C6CDC9; --scene-road:#5D6563; --scene-wall:#C4CDD1; --scene-roof:#8C989E;
+  --scene-sea:#7FA7B8; --scene-office:#ECEFEC; --scene-zone:#3C4844;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1412; --panel:#151D1A; --sunk:#111816; --ink:#E3EAE7; --muted:#97A49F; --line:#2B3632;
+    --accent:#F0BB2C; --accent-ink:#1B1404; --ok:#47BF82; --err:#FF7B6F; --focus:#86B4FF;
+    --tA:#5E9CE0; --tB:#A884D8; --tC:#52B880; --tD:#3CB7B7;
+    --scene-sky:#18211F; --scene-ground:#2A3330; --scene-road:#1B211F; --scene-wall:#56636A; --scene-roof:#3A454B;
+    --scene-sea:#1E3A47; --scene-office:#8C9792; --scene-zone:#B9C6C1;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1412; --panel:#151D1A; --sunk:#111816; --ink:#E3EAE7; --muted:#97A49F; --line:#2B3632;
+  --accent:#F0BB2C; --accent-ink:#1B1404; --ok:#47BF82; --err:#FF7B6F; --focus:#86B4FF;
+  --tA:#5E9CE0; --tB:#A884D8; --tC:#52B880; --tD:#3CB7B7;
+  --scene-sky:#18211F; --scene-ground:#2A3330; --scene-road:#1B211F; --scene-wall:#56636A; --scene-roof:#3A454B;
+  --scene-sea:#1E3A47; --scene-office:#8C9792; --scene-zone:#B9C6C1;
+  color-scheme:dark;
+}
+
+[hidden]{display:none!important}
+html{height:100%;box-sizing:border-box}
+*,*::before,*::after{box-sizing:inherit}
+body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;overflow:hidden}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 430px;grid-template-rows:auto minmax(0,1fr)}
+.bar{grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding-block:10px 12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:var(--panel);position:relative;border-bottom:1px solid var(--line)}
+.bar::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:4px;
+  background:repeating-linear-gradient(135deg,var(--accent) 0 10px,var(--ink) 10px 20px);opacity:.9;z-index:2;pointer-events:none}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand h1{margin:0;font-family:var(--f-display);font-weight:700;font-size:1.65rem;line-height:1;letter-spacing:.01em;text-transform:uppercase;text-wrap:balance}
+.brand p{margin:3px 0 0;font-family:var(--f-mono);font-size:.72rem;color:var(--muted);letter-spacing:.02em}
+.stamp{flex:none;width:38px;height:38px;border-radius:50%;border:2.5px solid var(--err);display:grid;place-items:center;
+  font-family:var(--f-display);font-weight:700;font-size:.62rem;line-height:1;color:var(--err);letter-spacing:.06em;transform:rotate(-12deg)}
+.meta{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.progress{display:flex;gap:4px}
+.progress span{width:22px;height:8px;border-radius:2px;background:var(--line)}
+.progress span.cur{background:var(--accent)}
+.progress span.done{background:var(--ok)}
+.progress span.part{background:color-mix(in srgb,var(--ok) 45%,var(--line))}
+.score{display:flex;align-items:baseline;gap:6px;font-variant-numeric:tabular-nums}
+.score span{font-family:var(--f-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.score b{font-family:var(--f-display);font-size:1.5rem;line-height:1}
+.score small{color:var(--muted);font-family:var(--f-mono);font-size:.78rem}
+.ghost{background:transparent;border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:.85rem;font-weight:500}
+.ghost:hover{background:var(--sunk)}
+
+.stage{position:relative;min-height:0;min-width:0;background:var(--scene-sky);overflow:hidden}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.legend{position:absolute;left:max(12px,env(safe-area-inset-left,0px));top:14px;display:flex;flex-direction:column;gap:5px;pointer-events:none}
+.legend div{display:flex;align-items:center;gap:7px;font-size:.74rem;font-weight:500;background:color-mix(in srgb,var(--panel) 86%,transparent);
+  padding:3px 9px 3px 3px;border-radius:5px;width:max-content;max-width:60vw}
+.chip{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:4px;color:#fff;font-family:var(--f-display);font-weight:700;font-size:.85rem;flex:none}
+.chip.A{background:var(--tA)}.chip.B{background:var(--tB)}.chip.C{background:var(--tC)}.chip.D{background:var(--tD)}
+.hint{position:absolute;right:max(12px,env(safe-area-inset-right,0px));bottom:12px;font-family:var(--f-mono);font-size:.68rem;color:var(--muted);
+  background:color-mix(in srgb,var(--panel) 80%,transparent);padding:3px 8px;border-radius:4px;pointer-events:none}
+.nogl{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted);font-size:.9rem}
+
+.panel{min-height:0;overflow-y:auto;background:var(--panel);border-left:1px solid var(--line);
+  padding-block:22px 28px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:22px;overscroll-behavior:contain}
+.eyebrow,.qnum{margin:0;font-family:var(--f-mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.case h2{margin:4px 0 6px;font-family:var(--f-display);font-weight:700;font-size:1.55rem;line-height:1.1;text-wrap:balance}
+.summary{margin:0;color:var(--muted);max-width:62ch}
+.route{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px;margin-top:14px;
+  padding:10px 12px;background:var(--sunk);border-radius:8px;border:1px solid var(--line)}
+.route .end{display:flex;gap:8px;align-items:flex-start;min-width:0}
+.route .end b{display:block;font-size:.86rem;line-height:1.25}
+.route .end small{display:block;color:var(--muted);font-size:.74rem;line-height:1.3}
+.route .arrow{font-family:var(--f-mono);color:var(--muted)}
+.facts{display:grid;grid-template-columns:minmax(0,11.5em) minmax(0,1fr);gap:7px 14px;margin:14px 0 0}
+.facts dt{font-family:var(--f-mono);font-size:.72rem;color:var(--muted);padding-top:2px}
+.facts dd{margin:0;font-size:.9rem;min-width:0}
+.facts dd.no{color:var(--err)} .facts dd.yes{color:var(--ok)}
+.sample{font-family:var(--f-mono);font-size:.68rem;color:var(--muted);border:1px dashed var(--line);border-radius:3px;padding:0 4px;margin-left:4px;white-space:nowrap}
+
+.question{border-top:1px solid var(--line);padding-top:18px}
+.qtext{margin:6px 0 14px;font-weight:600;font-size:1.02rem;line-height:1.45;max-width:62ch}
+.opts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.opt{width:100%;text-align:left;display:grid;grid-template-columns:1.6em minmax(0,1fr);gap:6px;align-items:start;
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 13px;cursor:pointer;line-height:1.4}
+.opt:hover:not(:disabled){background:var(--sunk);border-color:color-mix(in srgb,var(--ink) 30%,var(--line))}
+.opt .k{font-family:var(--f-mono);color:var(--muted);font-size:.85rem}
+.opt:disabled{cursor:default}
+.opt.right{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 13%,var(--panel))}
+.opt.wrong{border-color:var(--err);background:color-mix(in srgb,var(--err) 11%,var(--panel))}
+.opt.dim{opacity:.6}
+.feedback{margin-top:16px;display:flex;flex-direction:column;gap:12px}
+.verdict{margin:0;font-family:var(--f-display);font-weight:700;font-size:1.25rem;letter-spacing:.01em}
+.verdict.ok{color:var(--ok)} .verdict.err{color:var(--err)}
+.why{margin:0;max-width:62ch}
+.ref{margin:0;background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:11px 13px}
+.ref figcaption{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.04em;color:var(--muted);text-transform:uppercase}
+.ref figcaption b{color:var(--ink);font-weight:600}
+.ref blockquote{margin:6px 0 0;font-size:.88rem;line-height:1.5;font-style:italic}
+.fb-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.status{font-family:var(--f-mono);font-size:.74rem;color:var(--muted);min-width:0;flex:1 1 180px}
+.primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:11px 18px;font-weight:600;cursor:pointer}
+.primary:hover{filter:brightness(1.05)}
+
+.result h2{margin:4px 0 8px;font-family:var(--f-display);font-size:2rem;line-height:1}
+.result table{width:100%;border-collapse:collapse;margin-top:12px;font-variant-numeric:tabular-nums}
+.result td{padding:8px 0;border-bottom:1px solid var(--line);font-size:.9rem;vertical-align:top}
+.result td:last-child{text-align:right;font-family:var(--f-mono);white-space:nowrap;padding-left:12px}
+.result h3{margin:22px 0 8px;font-family:var(--f-mono);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.linklist{display:flex;flex-wrap:wrap;gap:6px}
+.linklist button{background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:4px 9px;font-family:var(--f-mono);font-size:.78rem;cursor:pointer}
+.note{font-size:.8rem;color:var(--muted);max-width:62ch;margin:0}
+
+.sheet{position:fixed;inset:0;z-index:20;background:color-mix(in srgb,#000 45%,transparent);display:grid;place-items:center;
+  padding-block:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.sheet-card{background:var(--panel);color:var(--ink);border-radius:12px;width:min(720px,100%);max-height:100%;display:flex;flex-direction:column;border:1px solid var(--line)}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.sheet-head h2{margin:0;font-family:var(--f-display);font-size:1.4rem;text-transform:uppercase;letter-spacing:.02em}
+.sheet-body{overflow-y:auto;padding:16px 20px 22px;display:flex;flex-direction:column;gap:10px}
+.sheet-body .ref.flash{border-color:var(--accent)}
+
+@media (max-width: 900px){
+  .app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(200px,42%) minmax(0,1fr)}
+  .panel{border-left:0;border-top:1px solid var(--line);padding-block:18px 26px}
+  .brand h1{font-size:1.35rem}
+  .brand p{display:none}
+  .hint{display:none}
+  .meta{flex-wrap:nowrap;gap:10px}
+  .progress span{width:14px}
+  .score b{font-size:1.25rem}
+  .ghost{padding:5px 10px}
+  .legend{top:auto;bottom:8px;flex-direction:row;flex-wrap:wrap;right:max(12px,env(safe-area-inset-right,0px))}
+  .legend div{font-size:.68rem}
+  .legend .lbl-long{display:none}
+}
+@media (max-width: 420px){
+  .facts{grid-template-columns:minmax(0,1fr)}
+  .facts dt{padding-top:6px}
+  .route{grid-template-columns:minmax(0,1fr)}
+  .route .arrow{transform:rotate(90deg);justify-self:start;margin-left:6px}
+}
+@media (prefers-reduced-motion: reduce){ *{scroll-behavior:auto!important} }
+</style>
+
+<div class="app" id="app" lang="tr">
+  <header class="bar">
+    <div class="brand">
+      <div class="stamp" aria-hidden="true">GÜMRÜK</div>
+      <div>
+        <h1>Antrepo Nakil Simülatörü</h1>
+        <p>Antrepolar arası eşya nakli · GK 103/2 · GY 320, 339, 346</p>
+      </div>
+    </div>
+    <div class="meta">
+      <div class="progress" id="progress" aria-label="Vaka ilerlemesi"></div>
+      <div class="score" aria-live="polite"><span>Puan</span><b id="score">0</b><small id="scoreMax">/ 0</small></div>
+      <button class="ghost" id="refsBtn" type="button">Dayanaklar</button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="scene" aria-label="Üç boyutlu antrepo sahası: iki gümrük müdürlüğü denetiminde dört antrepo ve nakil kamyonu"></canvas>
+    <div class="legend" aria-hidden="true">
+      <div><span class="chip A">A</span><span>Genel<span class="lbl-long"> · işletici sorumlu</span></span></div>
+      <div><span class="chip B">B</span><span>Genel<span class="lbl-long"> · kullanıcı sorumlu</span></span></div>
+      <div><span class="chip C">C</span><span>Özel<span class="lbl-long"> · işletici = kullanıcı</span></span></div>
+      <div><span class="chip D">D</span><span>Özel<span class="lbl-long"> · kayıt yoluyla beyan</span></span></div>
+    </div>
+    <div class="hint">Sürükle: döndür · Tekerlek / iki parmak: yakınlaştır</div>
+    <div class="nogl" id="nogl" hidden>3D görünüm bu cihazda açılamadı. Vakalar yan panelde çalışmaya devam eder.</div>
+  </main>
+
+  <aside class="panel" id="panel"></aside>
+</div>
+
+<div class="sheet" id="refs" lang="tr" hidden role="dialog" aria-modal="true" aria-labelledby="refsTitle">
+  <div class="sheet-card">
+    <div class="sheet-head">
+      <h2 id="refsTitle">Dayanaklar</h2>
+      <button class="ghost" id="refsClose" type="button">Kapat</button>
+    </div>
+    <div class="sheet-body" id="refsBody"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ---------- Mevzuat: metinler 2027gmynot/GUMRUK_MEVZUATI_TUMU.md dosyasından ---------- */
+const REFS = {
+  GK103_2:{code:"GK md. 103/2", title:"Antrepolar arası nakil izni",
+    text:"Antrepo rejimine tabi tutulmuş eşyanın bir gümrük antreposundan diğerine nakli, gümrük idarelerinin iznine bağlıdır."},
+  GY339_1:{code:"GY md. 339/1", title:"Rejim sona ermeden nakil",
+    text:"Gümrük antrepo rejimini sona erdirmeden antrepolar arasında eşya nakli 320 nci madde hükümleri çerçevesinde normal usulde veya basitleştirilmiş usulde yapılır."},
+  GY339_2:{code:"GY md. 339/2", title:"Basitleştirilmiş usul koşulları",
+    text:"Basitleştirilmiş usulün uygulanabilmesi için ayrıca; a) Eşyanın çıkarılacağı antreponun bağlı olduğu gümrük idaresi ile eşyanın konulacağı antreponun bağlı olduğu gümrük idaresinin […] kayıt yoluyla beyan usulünü kullandırma yetkisinin olması veya, b) Aynı kişinin her iki antrepodan sorumlu olması veya, c) Her iki antreponun stok kayıtlarının bilgisayar ağı ile birbirine bağlı olması, gerekir."},
+  GY339_3:{code:"GY md. 339/3", title:"Sorumluluğun geçişi",
+    text:"Eşyanın ikinci antrepoya girmesi ve eşya ile ilgili bilgilerin ikinci antrepo işleticisinin stok kayıtlarına geçmesi üzerine, nakledilen eşya konusunda ikinci antrepo işleticisinin sorumluluğu başlar."},
+  GY339_4:{code:"GY md. 339/4", title:"Elleçlenmiş eşya ve INF 8",
+    text:"Elleçleme işlemlerine tabi tutulan bir eşya naklediliyorsa ve INF 8 formunun kullanılacağı bir uygulama söz konusu ise, nakil sırasında kullanılan beyanname veya belgede, eşyanın mahiyetinin, gümrük kıymetinin ve miktarının da gösterilmesi zorunludur. Elleçleme işlemine tabi tutulmamış bir eşya naklediliyorsa, ortaya çıkabilecek gümrük yükümlülüğünün belirlenmesinde bu bilgilerin dikkate alınması gerekir."},
+  GY320_2:{code:"GY md. 320/2", title:"B tipi antrepo yasağı",
+    text:"Eşyanın çıkış veya varış yerinin B tipi antrepo olması halinde nakil mümkün değildir."},
+  GY329_A:{code:"GY md. 329", title:"A tipi antrepo",
+    text:"A tipi antrepo, işleticisinin, stok kayıtlarını tuttuğu ve antrepoya konulan eşyada her hangi bir noksanlık olması halinde gümrük vergilerini ödemekten sorumlu olduğu genel antrepo tipidir."},
+  GY329_B:{code:"GY md. 329", title:"B tipi antrepo",
+    text:"B tipi antrepo, antrepoya konulan eşyadan, Kanunun […] maddesinin birinci fıkrasında belirtilen kullanıcının sorumlu olduğu, antrepo beyannamesini kullanıcının verdiği genel antrepo tipidir. Antrepo işleticisinin sorumluluğu sınırlıdır."},
+  GY329_CD:{code:"GY md. 329", title:"C ve D tipi antrepo",
+    text:"C tipi antrepo, işleticisi ve kullanıcısı aynı kişi olan ve antrepoya alınan eşyadan bu kişinin sorumlu olduğu özel antrepo tipidir. D tipi antrepo, işleticisi ve kullanıcının aynı kişi olduğu, Kanunun […] maddesinin üçüncü fıkrasının uygulandığı özel antrepo tipidir."},
+  GK106_2:{code:"GK md. 106/2", title:"Kabul edilen noksanlıklar",
+    text:"Eşyanın niteliğinden kaynaklanan kayıplar ve fireler ile gümrüğün kontrolü altında yapılan işleme faaliyeti sonucunda ortaya çıkan noksanlıklar ve antrepo işleticileri ile kullanıcılarının kusur ve hatalarından ileri gelmediği gümrük idaresine kanıtlanan telef, kayıp ve çalınmalar için gümrük vergileri aranmaz."},
+  GK106_3:{code:"GK md. 106/3", title:"Kabul edilmeyen noksanlıklar",
+    text:"1 inci veya 2 nci fıkralarda yazılı nedenler dışında kalan noksanlıklar kabul edilmez. Bunların vergi ve cezaları toplamından oluşan tutar, yerine göre işletici veya kullanıcıya tazmin ettirilir."},
+  GK106_4:{code:"GK md. 106/4", title:"Fire oranları",
+    text:"Nitelikleri itibariyle antrepolarda ve antrepolar arası taşımalarda fire veren eşya ile antrepolarda yapılmasına izin verilen elleçlemeden dolayı noksanlaşan eşyanın fire oranları ilgili kuruluşların görüşleri alınarak Müsteşarlıkça belirlenir."},
+  GY346_1:{code:"GY md. 346/1", title:"Kalış süresi",
+    text:"Eşyanın antrepo rejimi altında kalış süresi sınırsızdır."},
+  GY346_4:{code:"GY md. 346/4", title:"Süre tahdidinin başlangıcı",
+    text:"Eşyanın antrepoda kalabileceği süre konusunda bir tahdit konulmuş ise; eşyanın antrepoya alındığı tarihten veya antrepolar arası nakil yoluyla başka bir antrepodan gelen eşyanın ilk antrepoya giriş tarihinden itibaren hesaplanır."},
+  GY346_5:{code:"GY md. 346/5", title:"Süresinde kaldırılmayan eşya",
+    text:"Antrepoda bulunan eşya için gümrükçe onaylanmış bir işlem ve kullanım tayin edilmesine ilişkin beyannamenin tescilinden itibaren otuz gün içinde işlemleri bitirilmeyen eşya ile, bir süre tayin edilmiş ise bu sürede kaldırılmayan eşya, Kanunun […] maddesinin birinci fıkrasının (f) ve (g) bentleri uyarınca tasfiye edilir."}
+};
+
+/* ---------- Saha ---------- */
+const SITES = {
+  A1:{x:-36,z:-16,type:"A",name:"Körfez Lojistik A.Ş.",kind:"Genel antrepo",admin:"Liman Gümrük Müdürlüğü"},
+  B1:{x:-14,z:-16,type:"B",name:"Rıhtım Depoculuk Ltd.",kind:"Genel antrepo",admin:"Liman Gümrük Müdürlüğü"},
+  C1:{x:16,z:-16,type:"C",name:"Anadolu Sanayi A.Ş.",kind:"Özel antrepo",admin:"OSB Gümrük Müdürlüğü"},
+  D1:{x:38,z:-16,type:"D",name:"Anadolu Sanayi A.Ş.",kind:"Özel antrepo",admin:"OSB Gümrük Müdürlüğü"}
+};
+const OFFICES = [
+  {x:-25,z:16,name:"Liman Gümrük Müdürlüğü"},
+  {x:27,z:16,name:"OSB Gümrük Müdürlüğü"}
+];
+const INITIAL_STOCK = {
+  A1:[["Pamuklu kumaş",120,"koli"],["Seramik karo",40,"palet"],["Kavrulmuş kahve",300,"karton"],["Dökme mısır",25000,"kg"],["Meyve suyu konsantresi",18,"varil"]],
+  B1:[["Halı",60,"balya"]],
+  C1:[["Pamuk ipliği",80,"koli"]],
+  D1:[["Hazır giyim",200,"koli"]]
+};
+
+/* ---------- Vakalar ---------- */
+const CASES = [
+ { title:"İlk nakil: A tipinden C tipine",
+   summary:"Kumaşın sahibi, eşyayı antrepo rejimini kapatmadan fabrikasının yanındaki özel antrepoya taşımak istiyor.",
+   from:"A1", to:"C1", cargo:{name:"Pamuklu kumaş",qty:120,unit:"koli"},
+   facts:[["Eşya","Pamuklu kumaş, 120 koli"],["Kayıt yoluyla beyan yetkisi","İki idarede de yok","no"],["Her iki antrepodan aynı kişi sorumlu","Hayır","no"],["Stok kayıtları ağla bağlı","Hayır","no"],["Elleçleme","Yapılmadı"]],
+   steps:[
+    {q:"Çıkış antreposu A tipi. Bu antrepoda eşya noksan çıkarsa gümrük vergilerini ödemekten kim sorumludur?",
+     opts:[["Antrepo işleticisi",true,"A tipi genel antrepoda stok kayıtlarını işletici tutar ve noksanlıkta vergilerden işletici sorumludur."],
+           ["Eşyayı antrepoya koyan kullanıcı",false,"Bu B tipi antreponun özelliğidir: B tipinde antrepo beyannamesini kullanıcı verir ve sorumlu odur."],
+           ["Denetleyici gümrük idaresi",false,"Gümrük idaresi yalnızca F tipi antrepoyu kendisi işletir; A tipinde sorumlu değildir."],
+           ["Eşyayı getiren taşıyıcı",false,"Antrepo tiplerinin tanımında taşıyıcıya bir sorumluluk verilmez."]],
+     refs:["GY329_A"]},
+    {q:"Kumaşın bu antrepodan diğerine nakli için kimin izni gerekir?",
+     opts:[["Antrepo işleticisinin onayı yeterlidir",false,"İşleticinin onayı tek başına yetmez; Kanun nakli gümrük idarelerinin iznine bağlar."],
+           ["Gümrük idarelerinin izni",true,"Antrepo rejimindeki eşyanın bir antrepodan diğerine nakli gümrük idarelerinin iznine bağlıdır."],
+           ["Bakanlık merkez teşkilatının onayı",false,"Kanun \"gümrük idarelerinin izni\" der; merkez onayı aranmaz."],
+           ["İzin gerekmez, bildirim yeterlidir",false,"Nakil açıkça izne bağlanmıştır."]],
+     refs:["GK103_2"]},
+    {q:"Nakil sırasında eşyanın antrepo rejimi ne olur?",
+     opts:[["Rejim sona erer, eşya serbest dolaşıma girer",false,"Serbest dolaşıma giriş ayrı bir rejimdir ve vergilerin ödenmesini gerektirir; nakil bunu gerektirmez."],
+           ["Rejim sona ermeden eşya ikinci antrepoya nakledilir",true,"Antrepolar arası nakil, gümrük antrepo rejimini sona erdirmeden yapılır."],
+           ["Eşya ihraç edilmiş sayılır",false,"Eşya Türkiye Gümrük Bölgesi içinde kalıyor; ihracat söz konusu değildir."],
+           ["Eşya geçici ithalat rejimine alınır",false,"Nakil için rejim değiştirilmez."]],
+     refs:["GY339_1"]},
+    {q:"Bu nakil hangi usulde yapılır?",
+     opts:[["Basitleştirilmiş usulde",false,"Basitleştirilmiş usul için 339/2'deki üç koşuldan en az biri gerekir. Vakada hiçbiri yok."],
+           ["Normal usulde",true,"Kayıt yoluyla beyan yetkisi yok, iki antrepodan aynı kişi sorumlu değil, stok kayıtları bağlı değil. Bu yüzden basitleştirilmiş usul uygulanamaz; nakil normal usulde yapılır."],
+           ["Önce serbest dolaşıma giriş, sonra yeni antrepo beyannamesi ile",false,"Rejim sona erdirilmeden nakil yapılabildiği için buna gerek yoktur."],
+           ["Kayıt yoluyla beyan usulünde",false,"Vakada iki idarenin de kayıt yoluyla beyan yetkisi yok."]],
+     refs:["GY339_2","GY339_1"], after:"drive"},
+    {q:"Kamyon C tipi antreponun rampasına ulaştı. Kumaşın sorumluluğu C tipi antrepo işleticisine ne zaman geçer?",
+     opts:[["Kamyon A tipi antrepodan çıktığı anda",false,"Çıkış anında sorumluluk henüz ikinci işleticiye geçmez."],
+           ["Gümrük idaresi nakle izin verdiği anda",false,"İzin, nakli mümkün kılar; sorumluluğu devretmez."],
+           ["Eşya ikinci antrepoya girip bilgileri ikinci işleticinin stok kayıtlarına geçince",true,"İki koşul birlikte aranır: eşyanın ikinci antrepoya girmesi ve bilgilerin ikinci işleticinin stok kayıtlarına geçmesi."],
+           ["İkinci antrepodaki ilk sayımda",false,"Sayım beklenmez; stok kaydına geçişle sorumluluk başlar."]],
+     refs:["GY339_3"], after:"stock"}
+   ]},
+ { title:"B tipi antrepoya nakil talebi",
+   summary:"Seramik karonun sahibi, eşyayı aynı limandaki daha ucuz bir B tipi antrepoya taşımak istiyor.",
+   from:"A1", to:"B1", cargo:{name:"Seramik karo",qty:40,unit:"palet"},
+   facts:[["Eşya","Seramik karo, 40 palet"],["Talep eden","Eşyanın sahibi"],["Denetleyici idare","İki antrepo da Liman Gümrük Müdürlüğü'nde"]],
+   steps:[
+    {q:"Bu nakil talebi hakkında ne karar verilir?",
+     opts:[["İzin verilir, nakil normal usulde yapılır",false,"Varış yeri B tipi antrepo olduğu için nakil mümkün değildir."],
+           ["İzin verilir, iki antrepo aynı idarede olduğu için basitleştirilmiş usul uygulanır",false,"Aynı idarede olmak B tipi yasağını kaldırmaz."],
+           ["Nakil mümkün değildir",true,"Eşyanın çıkış veya varış yeri B tipi antrepo ise nakil mümkün değildir."],
+           ["Teminat alınması şartıyla izin verilir",false,"Yönetmelik bu yasağa teminatla istisna tanımıyor."]],
+     refs:["GY320_2","GY329_B"], after:"deny"},
+    {q:"Aşağıdaki taleplerden hangisi de aynı gerekçeyle reddedilir?",
+     opts:[["B tipi antrepodaki halının A tipi antrepoya nakli",true,"Yasak hem çıkış hem varış yeri için geçerlidir: B tipinden çıkış da nakil yapılamaz."],
+           ["A tipi antrepodaki eşyanın C tipi antrepoya nakli",false,"İki tarafta da B tipi yok; izinle nakil yapılabilir."],
+           ["C tipi antrepodaki eşyanın D tipi antrepoya nakli",false,"İki tarafta da B tipi yok."],
+           ["Aynı firmanın iki A tipi antreposu arasında nakil",false,"İki tarafta da B tipi yok."]],
+     refs:["GY320_2"]}
+   ]},
+ { title:"Aynı şirketin iki antreposu",
+   summary:"Anadolu Sanayi, C tipi antreposundaki ipliği yine kendisine ait D tipi antrepoya taşıyacak.",
+   from:"C1", to:"D1", cargo:{name:"Pamuk ipliği",qty:80,unit:"koli"},
+   facts:[["Eşya","Pamuk ipliği, 80 koli"],["Kayıt yoluyla beyan yetkisi","OSB Gümrük Müdürlüğü'nde yok","no"],["Her iki antrepodan aynı kişi sorumlu","Evet, ikisi de Anadolu Sanayi'nin","yes"],["Stok kayıtları ağla bağlı","Hayır","no"]],
+   steps:[
+    {q:"Bu nakilde basitleştirilmiş usul uygulanabilir mi?",
+     opts:[["Hayır, iki idarenin de kayıt yoluyla beyan yetkisi yok",false,"Kayıt yoluyla beyan yetkisi koşullardan yalnızca biridir. Koşullar \"veya\" ile bağlanmıştır."],
+           ["Evet, aynı kişi her iki antrepodan sorumlu",true,"339/2-b: aynı kişinin her iki antrepodan sorumlu olması tek başına yeterlidir."],
+           ["Hayır, stok kayıtları bilgisayar ağıyla bağlı değil",false,"Bu da koşullardan yalnızca biridir; biri sağlanınca diğerleri aranmaz."],
+           ["Evet, ama yalnızca varış antreposu D tipi olduğu için",false,"Varış antreposunun D tipi olması 339/2'de sayılan bir koşul değildir."]],
+     refs:["GY339_2","GY329_CD"], after:"drive"},
+    {q:"Aşağıdakilerden hangisi basitleştirilmiş usul için tek başına yeterli DEĞİLDİR?",
+     opts:[["Her iki antreponun stok kayıtlarının bilgisayar ağıyla bağlı olması",false,"Bu 339/2-c koşuludur ve tek başına yeterlidir."],
+           ["Aynı kişinin her iki antrepodan sorumlu olması",false,"Bu 339/2-b koşuludur ve tek başına yeterlidir."],
+           ["Yalnızca varış idaresinin kayıt yoluyla beyan yetkisinin olması",true,"339/2-a hem çıkış hem varış antreposunun bağlı olduğu idarenin yetkili olmasını ister. Tek idarenin yetkisi yetmez."],
+           ["Her iki idarenin kayıt yoluyla beyan usulünü kullandırma yetkisinin olması",false,"Bu 339/2-a koşuludur ve tek başına yeterlidir."]],
+     refs:["GY339_2"], after:"stock"}
+   ]},
+ { title:"Elleçlenmiş eşyanın nakli",
+   summary:"Kahve, A tipi antrepoda gümrük izniyle etiketlendi ve yeniden paketlendi. Şimdi C tipi antrepoya gidecek.",
+   from:"A1", to:"C1", cargo:{name:"Kavrulmuş kahve",qty:300,unit:"karton"},
+   facts:[["Eşya","Kavrulmuş kahve, 300 karton"],["Elleçleme","Etiketleme ve yeniden paketleme (izinli)"],["INF 8 formu","Kullanılacak"]],
+   steps:[
+    {q:"Nakil sırasında kullanılan beyanname veya belgede aşağıdakilerden hangilerinin de gösterilmesi zorunludur?",
+     opts:[["Yalnızca kap adedi ve marka",false,"Elleçlenmiş eşyada ve INF 8 kullanılacaksa daha fazlası istenir."],
+           ["Eşyanın mahiyeti, gümrük kıymeti ve miktarı",true,"Elleçlenmiş eşya naklediliyor ve INF 8 kullanılacaksa bu üç bilgi belgede gösterilmelidir."],
+           ["Yalnızca GTİP",false,"Tarife pozisyonu tek başına yeterli değildir."],
+           ["Satış faturası ve menşe şahadetnamesi",false,"339/4 bu belgeleri saymaz."]],
+     refs:["GY339_4"], after:"drive"},
+    {q:"Kahve elleçlenmemiş olsaydı bu bilgiler için ne geçerli olurdu?",
+     opts:[["Bu bilgilere hiç gerek kalmazdı",false,"Elleçlenmemiş eşyada da bu bilgiler bir amaçla dikkate alınır."],
+           ["Ortaya çıkabilecek gümrük yükümlülüğünün belirlenmesinde dikkate alınırdı",true,"339/4'ün ikinci cümlesi: elleçlenmemiş eşyada bu bilgiler, doğabilecek gümrük yükümlülüğünün belirlenmesinde dikkate alınır."],
+           ["Nakil yasaklanırdı",false,"Elleçlenmemiş eşyanın nakline bir yasak yoktur."],
+           ["Bilgiler yalnızca varış antreposunda istenirdi",false,"339/4 böyle bir ayrım yapmaz."]],
+     refs:["GY339_4"], after:"stock"}
+   ]},
+ { title:"Varışta eksik çıkan mısır",
+   summary:"Dökme mısır C tipi antrepoya ulaştı. Kantarda yüklenenden az geldi.",
+   from:"A1", to:"C1", enterDrive:true, cargo:{name:"Dökme mısır",qty:25000,unit:"kg"}, arriveQty:24900,
+   facts:[["Eşya","Dökme mısır"],["Yüklenen","25.000 kg"],["Varışta tartılan","24.900 kg (100 kg eksik)","no"],["Fire oranı","%0,5 <span class=\"sample\">örnek değer</span>"]],
+   steps:[
+    {q:"Varışta çıkan 100 kg (%0,4) eksiklik için ne yapılır?",
+     opts:[["Eşyanın niteliğinden kaynaklanan fire oran içinde kaldığından gümrük vergileri aranmaz",true,"Fire veren eşyada belirlenen oran içindeki noksanlık 106/2 kapsamındadır; gümrük vergileri aranmaz."],
+           ["Eksik kısmın vergi ve cezaları işleticiye tazmin ettirilir",false,"Bu sonuç 1. ve 2. fıkra dışında kalan noksanlıklar içindir. Oran içindeki fire 2. fıkra kapsamındadır."],
+           ["Nakil iptal edilir, eşya ilk antrepoya döner",false,"Mevzuatta böyle bir sonuç yok."],
+           ["Eksiklik miktarı ne olursa olsun kabul edilir",false,"Oranı aşan ve kusursuzluğu kanıtlanamayan noksanlık kabul edilmez."]],
+     refs:["GK106_2","GK106_4"], after:"stock"},
+    {q:"Varışta 24.700 kg tartılsaydı (300 kg eksik), %0,5 fire oranını aşan miktar kaç kg olurdu?",
+     opts:[["125 kg",false,"125 kg, kabul edilen fire miktarıdır: 25.000 × %0,5."],
+           ["175 kg",true,"Kabul edilen fire 25.000 × %0,5 = 125 kg. 300 − 125 = 175 kg oranı aşar."],
+           ["300 kg",false,"Eksikliğin tamamı oranı aşmıyor; 125 kg'ı fire olarak kabul edilir."],
+           ["0 kg",false,"%1,2'lik eksiklik %0,5 oranını aşıyor."]],
+     refs:["GK106_4"]},
+    {q:"Oranı aşan 175 kg'ın işletici ve kullanıcının kusurundan kaynaklanmadığı kanıtlanamazsa ne olur?",
+     opts:[["Vergi ve cezaları toplamından oluşan tutar, yerine göre işletici veya kullanıcıya tazmin ettirilir",true,"1. ve 2. fıkra dışındaki noksanlıklar kabul edilmez; vergi ve cezaların toplamı tazmin ettirilir."],
+           ["Yalnızca gümrük vergisi alınır, ceza uygulanmaz",false,"106/3 vergi ve cezaların toplamından söz eder."],
+           ["Tutar taşıyıcıdan tahsil edilir",false,"106/3 tazmin için işletici veya kullanıcıyı gösterir."],
+           ["Eksik kısım tasfiye edilir",false,"Eksik eşya ortada olmadığı için tasfiye edilemez; tazmin söz konusudur."]],
+     refs:["GK106_3"]}
+   ]},
+ { title:"Süre tahdidi olan eşya",
+   summary:"Meyve suyu konsantresi önce A tipi antrepoya girdi, sonra nakille D tipi antrepoya geçti.",
+   from:"A1", to:"D1", enterDrive:true, cargo:{name:"Meyve suyu konsantresi",qty:18,unit:"varil"},
+   facts:[["Eşya","Meyve suyu konsantresi, 18 varil"],["Süre tahdidi","6 ay <span class=\"sample\">örnek değer</span>"],["İlk antrepoya giriş","01.03.2026 (Körfez Lojistik, A tipi)"],["Nakille ikinci antrepoya giriş","10.06.2026 (Anadolu Sanayi, D tipi)"]],
+   steps:[
+    {q:"Genel kural olarak eşyanın antrepo rejimi altında kalış süresi nedir?",
+     opts:[["1 yıl",false,"Genel kuralda bir süre sınırı yoktur."],["6 ay",false,"6 ay bu vakadaki özel tahdittir, genel kural değildir."],
+           ["Sınırsız",true,"Antrepo rejiminde kalış süresi sınırsızdır. Bakanlık özellikle bozulabilir eşya için tahdit koyabilir."],["2 yıl",false,"Genel kuralda bir süre sınırı yoktur."]],
+     refs:["GY346_1"], after:"stock"},
+    {q:"Bu eşyada 6 aylık süre hangi tarihten itibaren hesaplanır?",
+     opts:[["10.06.2026, ikinci antrepoya giriş tarihi",false,"Nakil süreyi yeniden başlatmaz."],
+           ["01.03.2026, ilk antrepoya giriş tarihi",true,"Nakil yoluyla gelen eşyada süre, ilk antrepoya giriş tarihinden itibaren hesaplanır."],
+           ["Nakil izninin verildiği tarih",false,"346/4 izin tarihine bağlamaz."],
+           ["Nakil belgesinin tescil tarihi",false,"346/4 ilk antrepoya giriş tarihini esas alır."]],
+     refs:["GY346_4"]},
+    {q:"Eşya bu süre içinde antrepodan kaldırılmazsa ne olur?",
+     opts:[["Süre kendiliğinden 6 ay uzar",false,"Otomatik uzama yok."],
+           ["Eşya serbest dolaşıma girmiş sayılır",false,"Serbest dolaşıma giriş beyanla olur, süre aşımıyla olmaz."],
+           ["Eşya tasfiye edilir",true,"Süre tayin edilmişse bu sürede kaldırılmayan eşya Kanun uyarınca tasfiye edilir."],
+           ["İkinci antrepoya girişten itibaren yeni süre başlar",false,"Süre ilk girişten işler ve nakille yenilenmez."]],
+     refs:["GY346_5","GY346_4"]}
+   ]}
+];
+
+const TOTAL_Q = CASES.reduce((n,c)=>n+c.steps.length,0);
+const POINTS = 10;
+const fmt = n => n.toLocaleString("tr-TR");
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cloneStock = s => JSON.parse(JSON.stringify(s));
+
+/* ================= 3D scene ================= */
+const Scene = (function(){
+  let ok=false, renderer, scene, camera, controls, clock, hemi, sun;
+  const mats={wall:[],roof:[],band:{A:[],B:[],C:[],D:[]},ground:null,road:null,sea:null,office:[],zone:[]};
+  const sites={};
+  let truck=null, truckLabel=null, deny=null, barrier=null, tween=null, drive=null, ringsOn=[];
+  const css = n => (getComputedStyle(document.documentElement).getPropertyValue(n).trim() || "#888888");
+  const FONT = '"Barlow Condensed","Arial Narrow",sans-serif';
+  const MONO = '"IBM Plex Mono",ui-monospace,monospace';
+
+  function canvasTex(w,h,draw){
+    const c=document.createElement("canvas"); c.width=w; c.height=h;
+    const g=c.getContext("2d"); draw(g,w,h);
+    const t=new THREE.CanvasTexture(c); t.anisotropy=4;
+    return {tex:t,canvas:c,ctx:g};
+  }
+  function roundRect(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+  function box(w,h,d,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.castShadow=true;m.receiveShadow=true;return m;}
+  function flat(w,d,mat,y){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mat);m.rotation.x=-Math.PI/2;m.position.y=y||0;m.receiveShadow=true;return m;}
+
+  function init(canvas, stage){
+    if(!window.THREE || !THREE.OrbitControls) return false;
+    try{ renderer=new THREE.WebGLRenderer({canvas,antialias:true}); }catch(e){ return false; }
+    if(!renderer.getContext()) return false;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+    renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    scene=new THREE.Scene();
+    camera=new THREE.PerspectiveCamera(42,1,0.5,600);
+    camera.position.set(14,62,78);
+    controls=new THREE.OrbitControls(camera,canvas);
+    controls.enableDamping=true; controls.dampingFactor=0.08;
+    controls.maxPolarAngle=Math.PI*0.44; controls.minDistance=16; controls.maxDistance=150;
+    controls.target.set(0,0,-4); controls.screenSpacePanning=false;
+    clock=new THREE.Clock();
+
+    hemi=new THREE.HemisphereLight(0xffffff,0x444444,0.75); scene.add(hemi);
+    sun=new THREE.DirectionalLight(0xffffff,0.85); sun.position.set(40,70,35);
+    sun.castShadow=true; sun.shadow.mapSize.set(1024,1024);
+    Object.assign(sun.shadow.camera,{left:-70,right:70,top:50,bottom:-50,near:10,far:200});
+    scene.add(sun);
+
+    buildWorld();
+    applyTheme();
+    const ro=new ResizeObserver(()=>resize(stage)); ro.observe(stage); resize(stage);
+    ok=true;
+    requestAnimationFrame(loop);
+    return true;
+  }
+
+  function resize(stage){
+    const w=stage.clientWidth, h=stage.clientHeight; if(!w||!h) return;
+    renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+
+  function buildWorld(){
+    mats.ground=new THREE.MeshStandardMaterial({roughness:1});
+    scene.add(Object.assign(flat(190,130,mats.ground,0),{}));
+    mats.sea=new THREE.MeshStandardMaterial({roughness:.35,metalness:.1});
+    const sea=flat(50,130,mats.sea,0.03); sea.position.x=-87; scene.add(sea);
+    const quayMat=new THREE.MeshStandardMaterial({color:0x9a9f9c,roughness:.9});
+    const quay=box(2,1,130,quayMat); quay.position.set(-62,0.4,0); scene.add(quay);
+
+    mats.road=new THREE.MeshStandardMaterial({roughness:.95});
+    const road=flat(156,8,mats.road,0.04); road.position.set(17,0.04,2); scene.add(road);
+    const dashMat=new THREE.MeshBasicMaterial({color:0xf2f2ee});
+    for(let x=-58;x<=92;x+=6){const d=flat(2.6,0.22,dashMat,0.06);d.position.set(x,0.06,2);scene.add(d);}
+    Object.keys(SITES).forEach(id=>{const s=SITES[id];const sp=flat(6,8.6,mats.road,0.045);sp.position.set(s.x,0.045,-6.3);scene.add(sp);});
+    OFFICES.forEach(o=>{const sp=flat(5,6,mats.road,0.045);sp.position.set(o.x,0.045,9);scene.add(sp);});
+
+    // denetim alanları
+    zone(-50,-2,-27,27,"LİMAN GÜMRÜK MÜDÜRLÜĞÜ DENETİM ALANI",-26);
+    zone(4,52,-27,27,"OSB GÜMRÜK MÜDÜRLÜĞÜ DENETİM ALANI",28);
+
+    // konteyner yığını
+    const cCols=[0xa6483a,0x2f5d8a,0x3f7a4f,0xb7862d,0x6b5a8e,0x8a8f8c];
+    let k=0;
+    for(let z=-24;z<=24;z+=7){ for(let lvl=0;lvl<((z/7+4)%3)+1;lvl++){
+      const m=box(5.8,2.5,2.4,new THREE.MeshStandardMaterial({color:cCols[k++%cCols.length],roughness:.8}));
+      m.position.set(-56+(lvl%2)*0.3,1.25+lvl*2.55,z); scene.add(m);} }
+
+    Object.keys(SITES).forEach(id=>warehouse(id,SITES[id]));
+    OFFICES.forEach(office);
+    trees();
+    makeTruck();
+    makeDeny();
+    buildAmbient();
+  }
+
+  function zone(x1,x2,z1,z2,label,lx){
+    const mat=new THREE.LineDashedMaterial({dashSize:1.4,gapSize:1,transparent:true,opacity:.55});
+    mats.zone.push(mat);
+    const pts=[new THREE.Vector3(x1,.08,z1),new THREE.Vector3(x2,.08,z1),new THREE.Vector3(x2,.08,z2),new THREE.Vector3(x1,.08,z2),new THREE.Vector3(x1,.08,z1)];
+    const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),mat); line.computeLineDistances(); scene.add(line);
+    const t=canvasTex(1024,64,(g,w,h)=>{g.clearRect(0,0,w,h);g.fillStyle="#ffffff";g.font=`600 40px ${FONT}`;g.textAlign="center";g.textBaseline="middle";g.fillText(label,w/2,h/2+2);});
+    const lm=new THREE.MeshBasicMaterial({map:t.tex,transparent:true,opacity:.75,depthWrite:false});
+    mats.zone.push(lm);
+    const p=flat(30,1.9,lm,0.09); p.position.set((x1+x2)/2,0.09,z2-1.6); scene.add(p);
+  }
+
+  function corrugated(){
+    return canvasTex(256,64,(g,w,h)=>{for(let i=0;i<32;i++){const x=i*8;const gr=g.createLinearGradient(x,0,x+8,0);
+      gr.addColorStop(0,"#ffffff");gr.addColorStop(.5,"#d9d9d9");gr.addColorStop(1,"#f2f2f2");g.fillStyle=gr;g.fillRect(x,0,8,h);}});
+  }
+
+  function warehouse(id,s){
+    const grp=new THREE.Group(); grp.position.set(s.x,0,s.z); scene.add(grp);
+    const wt=corrugated(); wt.tex.wrapS=THREE.RepeatWrapping; wt.tex.repeat.set(5,1);
+    const wall=new THREE.MeshStandardMaterial({map:wt.tex,roughness:.85,metalness:.1}); mats.wall.push(wall);
+    const body=box(16,7,11,wall); body.position.y=3.5; grp.add(body);
+    const band=new THREE.MeshStandardMaterial({roughness:.7}); mats.band[s.type].push(band);
+    const b=box(16.15,1.1,11.15,band); b.position.y=6.2; grp.add(b);
+    const roof=new THREE.MeshStandardMaterial({roughness:.8}); mats.roof.push(roof);
+    const r=box(16.8,0.5,11.8,roof); r.position.y=7.25; grp.add(r);
+    // çatı amblemi
+    const em=canvasTex(256,256,(g,w,h)=>{g.clearRect(0,0,w,h);g.fillStyle="rgba(255,255,255,.92)";g.beginPath();g.arc(128,128,118,0,Math.PI*2);g.fill();
+      g.fillStyle=css("--t"+s.type);g.beginPath();g.arc(128,128,104,0,Math.PI*2);g.fill();
+      g.fillStyle="#fff";g.font=`700 150px ${FONT}`;g.textAlign="center";g.textBaseline="middle";g.fillText(s.type,128,138);});
+    const emM=new THREE.MeshBasicMaterial({map:em.tex,transparent:true}); const emP=flat(6,6,emM,7.52); grp.add(emP);
+    // ön tabela
+    const sign=canvasTex(1024,80,(g,w,h)=>{g.fillStyle=css("--t"+s.type);g.fillRect(0,0,w,h);g.fillStyle="#fff";g.font=`700 52px ${FONT}`;
+      g.textBaseline="middle";g.textAlign="center";g.fillText((s.type+" tipi "+s.kind+" · "+s.name).toLocaleUpperCase("tr-TR"),w/2,h/2+3);});
+    const sp=new THREE.Mesh(new THREE.PlaneGeometry(15.4,1.1),new THREE.MeshBasicMaterial({map:sign.tex}));
+    sp.position.set(0,6.2,5.59); grp.add(sp);
+    // kepenk
+    const door=canvasTex(128,128,(g,w,h)=>{g.fillStyle="#3b4240";g.fillRect(0,0,w,h);g.fillStyle="#2c3230";for(let y=0;y<h;y+=8)g.fillRect(0,y,w,3);});
+    const dp=new THREE.Mesh(new THREE.PlaneGeometry(6.2,4.6),new THREE.MeshStandardMaterial({map:door.tex,roughness:.9}));
+    dp.position.set(0,2.3,5.52); grp.add(dp);
+    const can=box(8,0.25,2.2,roof); can.position.set(0,4.95,6.6); grp.add(can);
+    // rampa kenarı sarı-siyah
+    const stripe=canvasTex(256,32,(g,w,h)=>{for(let x=-h;x<w+h;x+=32){g.fillStyle="#e3a60b";g.beginPath();g.moveTo(x,0);g.lineTo(x+16,0);g.lineTo(x+16-h,h);g.lineTo(x-h,h);g.fill();g.fillStyle="#1b1b1b";g.beginPath();g.moveTo(x+16,0);g.lineTo(x+32,0);g.lineTo(x+32-h,h);g.lineTo(x+16-h,h);g.fill();}});
+    const ramp=box(7,0.5,1.4,new THREE.MeshStandardMaterial({map:stripe.tex,roughness:.8})); ramp.position.set(0,0.25,6.2); grp.add(ramp);
+    // stok yığınları
+    const yard=new THREE.Group(); yard.position.set(s.x,0,s.z); scene.add(yard);
+    // halka
+    const ringMat=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide});
+    const ring=new THREE.Mesh(new THREE.RingGeometry(11.2,12.3,72),ringMat); ring.rotation.x=-Math.PI/2; ring.position.set(s.x,0.1,s.z+1.5); ring.visible=false; scene.add(ring);
+    // stok tabelası
+    const st=canvasTex(512,300,()=>{}); const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:st.tex,depthTest:false,transparent:true}));
+    sprite.renderOrder=5; sprite.position.set(s.x,13.5,s.z); scene.add(sprite);
+    sites[id]={grp,yard,ring,ringMat,sprite,st,s};
+  }
+
+  function office(o){
+    const grp=new THREE.Group(); grp.position.set(o.x,0,o.z); scene.add(grp);
+    const m=new THREE.MeshStandardMaterial({roughness:.8}); mats.office.push(m);
+    const body=box(11,5,8,m); body.position.y=2.5; grp.add(body);
+    const rm=new THREE.MeshStandardMaterial({roughness:.8}); mats.roof.push(rm);
+    const roof=box(11.6,.4,8.6,rm); roof.position.y=5.2; grp.add(roof);
+    const winMat=new THREE.MeshStandardMaterial({color:0x2d4a5a,roughness:.3,metalness:.3});
+    for(let i=-2;i<=2;i++){const w=new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.2),winMat);w.position.set(i*2,3.2,-4.01);w.rotation.y=Math.PI;grp.add(w);}
+    const sign=canvasTex(1024,96,(g,w,h)=>{g.fillStyle="#1f2a44";g.fillRect(0,0,w,h);g.fillStyle="#fff";g.font=`700 60px ${FONT}`;g.textAlign="center";g.textBaseline="middle";g.fillText(o.name.toLocaleUpperCase("tr-TR"),w/2,h/2+3);});
+    const sp=new THREE.Mesh(new THREE.PlaneGeometry(10,0.95),new THREE.MeshBasicMaterial({map:sign.tex})); sp.position.set(0,1.6,-4.02); sp.rotation.y=Math.PI; grp.add(sp);
+    const door=new THREE.Mesh(new THREE.PlaneGeometry(2,2.2),new THREE.MeshStandardMaterial({color:0x2f3533})); door.position.set(0,1.1,-4.01); door.rotation.y=Math.PI; door.position.y=1.1; door.position.x=3.6; grp.add(door);
+    const pole=box(.16,9,.16,new THREE.MeshStandardMaterial({color:0xd8dbd9,metalness:.6,roughness:.3})); pole.position.set(6.6,4.5,-5.5); grp.add(pole);
+    const fl=canvasTex(240,160,(g,w,h)=>{const G=h;g.fillStyle="#e30a17";g.fillRect(0,0,w,h);g.fillStyle="#fff";g.beginPath();g.arc(.5*G,.5*G,.25*G,0,Math.PI*2);g.fill();
+      g.fillStyle="#e30a17";g.beginPath();g.arc(.5625*G,.5*G,.2*G,0,Math.PI*2);g.fill();
+      g.fillStyle="#fff";g.beginPath();const cx=.5625*G+.2*G+.0167*G+.125*G*.9,cy=.5*G,R=.125*G,rr=R*.382;for(let i=0;i<10;i++){const a=Math.PI+i*Math.PI/5;const rad=i%2?rr:R;g.lineTo(cx+rad*Math.cos(a),cy+rad*Math.sin(a));}g.closePath();g.fill();});
+    const flag=new THREE.Mesh(new THREE.PlaneGeometry(3,2),new THREE.MeshBasicMaterial({map:fl.tex,side:THREE.DoubleSide}));
+    flag.position.set(8.1,8,-5.5); grp.add(flag); flag.userData.wave=true; grp.userData.flag=flag;
+    officeFlags.push(flag);
+  }
+  const officeFlags=[];
+
+  function trees(){
+    const trunk=new THREE.MeshStandardMaterial({color:0x6b4f36,roughness:1});
+    const leaf=new THREE.MeshStandardMaterial({color:0x4f7a4a,roughness:1});
+    const spots=[[-48,24],[-45,21],[-6,24],[2,-24],[0,24],[50,24],[56,-20],[58,6],[48,-26],[-46,-26],[6,26],[-3,-25]];
+    spots.forEach(([x,z],i)=>{const t=box(.35,1.6,.35,trunk);t.position.set(x,.8,z);scene.add(t);
+      const c=new THREE.Mesh(new THREE.ConeGeometry(1.4+(i%3)*.2,3.4,8),leaf);c.castShadow=true;c.position.set(x,3.1,z);scene.add(c);});
+  }
+
+  function makeTruck(){
+    truck=new THREE.Group();
+    const cab=box(2.2,2.3,2.4,new THREE.MeshStandardMaterial({color:0xe3a60b,roughness:.5,metalness:.2})); cab.position.set(3.3,1.55,0); truck.add(cab);
+    const win=box(.06,.85,2.05,new THREE.MeshStandardMaterial({color:0x22313a,roughness:.2,metalness:.4})); win.position.set(4.42,2.05,0); truck.add(win);
+    const tr=box(6.2,2.8,2.5,new THREE.MeshStandardMaterial({color:0xdfe3e1,roughness:.6})); tr.position.set(-.9,1.95,0); truck.add(tr);
+    const ch=box(8.6,.4,2,new THREE.MeshStandardMaterial({color:0x2b2f2e})); ch.position.set(.3,.55,0); truck.add(ch);
+    const wm=new THREE.MeshStandardMaterial({color:0x1b1d1c,roughness:.9});
+    [3.4,-.6,-2.9].forEach(x=>[1.05,-1.05].forEach(z=>{const w=new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,.4,14),wm);w.rotation.x=Math.PI/2;w.position.set(x,.5,z);w.castShadow=true;truck.add(w);}));
+    const seal=box(.06,.42,.26,new THREE.MeshStandardMaterial({color:0xc0281e})); seal.position.set(-4.03,1.9,0); truck.add(seal);
+    const lt=canvasTex(512,132,()=>{}); truckLabel={...lt, sprite:new THREE.Sprite(new THREE.SpriteMaterial({map:lt.tex,depthTest:false,transparent:true}))};
+    truckLabel.sprite.renderOrder=6; truckLabel.sprite.scale.set(9,9*132/512,1); truckLabel.sprite.position.set(0,5.2,0); truck.add(truckLabel.sprite);
+    truck.visible=false; scene.add(truck);
+  }
+
+  function setTruckLabel(top,bottom,tone){
+    const {ctx:g,canvas:c,tex}=truckLabel; g.clearRect(0,0,c.width,c.height);
+    g.fillStyle="rgba(18,24,22,.88)"; roundRect(g,4,4,c.width-8,c.height-8,18); g.fill();
+    g.fillStyle=tone==="ok"?"#47bf82":tone==="wait"?"#f0bb2c":"#ff7b6f"; g.fillRect(20,24,10,c.height-48);
+    g.fillStyle="#fff"; g.font=`700 46px ${FONT}`; g.textBaseline="alphabetic"; g.fillText(top,46,62);
+    g.fillStyle="#c9d4cf"; g.font=`500 28px ${MONO}`; g.fillText(bottom,46,104);
+    tex.needsUpdate=true;
+  }
+
+  function makeDeny(){
+    const t=canvasTex(512,256,(g,w,h)=>{g.fillStyle="rgba(174,42,31,.94)";roundRect(g,8,8,w-16,h-16,28);g.fill();
+      g.strokeStyle="#fff";g.lineWidth=16;g.beginPath();g.arc(118,128,72,0,Math.PI*2);g.stroke();g.beginPath();g.moveTo(68,178);g.lineTo(168,78);g.stroke();
+      g.fillStyle="#fff";g.font=`700 64px ${FONT}`;g.textBaseline="middle";g.fillText("NAKİL",214,100);g.fillText("YAPILAMAZ",214,164);});
+    deny=new THREE.Sprite(new THREE.SpriteMaterial({map:t.tex,depthTest:false,transparent:true})); deny.renderOrder=7; deny.scale.set(9,4.5,1); deny.visible=false; scene.add(deny);
+    const bt=canvasTex(256,32,(g,w,h)=>{for(let x=0;x<w;x+=32){g.fillStyle=(x/32)%2?"#ffffff":"#c0281e";g.fillRect(x,0,32,h);}});
+    barrier=new THREE.Group();
+    const arm=box(6.4,.3,.3,new THREE.MeshStandardMaterial({map:bt.tex})); arm.position.y=1.1; barrier.add(arm);
+    const post=box(.4,1.3,.4,new THREE.MeshStandardMaterial({color:0x444a48})); post.position.set(-3.3,.65,0); barrier.add(post);
+    barrier.visible=false; scene.add(barrier);
+  }
+
+  /* ---------- Canlı saha: tırlar, işçiler, forkliftler, gemi ---------- */
+  const LANE_E=3.6, LANE_W=0.4, X_PORT=-60, X_END=92;
+  const rigs=[], people=[], lifts=[];
+  const officeSlots=OFFICES.map(o=>({x:o.x,busy:null}));
+  const rnd=(a,b)=>a+Math.random()*(b-a);
+  let skinMat=null;
+  function turnTo(obj,hx,hz,dt,rate){
+    const a=Math.atan2(-hz,hx); let d=a-obj.rotation.y;
+    d=((d+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
+    obj.rotation.y+=d*Math.min(1,dt*rate);
+  }
+
+  function makeRig(cab,cont){
+    const g=new THREE.Group();
+    const c=box(2.2,2.4,2.4,new THREE.MeshStandardMaterial({color:cab,roughness:.45,metalness:.25})); c.position.set(4.3,1.6,0); g.add(c);
+    const w=box(.06,.85,2.05,new THREE.MeshStandardMaterial({color:0x22313a,roughness:.2,metalness:.4})); w.position.set(5.42,2.1,0); g.add(w);
+    const ct=corrugated(); ct.tex.wrapS=THREE.RepeatWrapping; ct.tex.repeat.set(3,1);
+    const k=box(7.6,2.6,2.45,new THREE.MeshStandardMaterial({map:ct.tex,color:cont,roughness:.75})); k.position.set(-.5,2.05,0); g.add(k);
+    const ch=box(10.2,.4,2,new THREE.MeshStandardMaterial({color:0x2b2f2e})); ch.position.set(.7,.55,0); g.add(ch);
+    const wm=new THREE.MeshStandardMaterial({color:0x1b1d1c,roughness:.9});
+    [4.4,-2.2,-3.4].forEach(x=>[1.05,-1.05].forEach(z=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,.4,14),wm);m.rotation.x=Math.PI/2;m.position.set(x,.5,z);m.castShadow=true;g.add(m);}));
+    scene.add(g); return g;
+  }
+
+  function newRoute(r,east,startX){
+    if(east===undefined) east=Math.random()<.5;
+    const dir=east?1:-1, lane=east?LANE_E:LANE_W;
+    const x0=startX??(east?X_PORT:X_END), x1=east?X_END:X_PORT;
+    if(startX===undefined && rigs.some(o=>o!==r && o.g.visible && Math.abs(o.g.position.x-x0)<14 && Math.abs(o.g.position.z-lane)<2)){
+      r.pts=null; r.g.visible=false; r.wait=1.5; return;
+    }
+    const pts=[{x:x0,z:lane}];
+    const free=officeSlots.filter(s=>!s.busy && (s.x-x0)*dir>10);
+    if(free.length && Math.random()<.65){
+      const s=free[Math.floor(Math.random()*free.length)]; s.busy=r;
+      pts.push({x:s.x-6.5*dir,z:lane},{x:s.x,z:6.9,wait:rnd(4,7),turn:true},{x:s.x+6.5*dir,z:lane,turn:true,release:s});
+    }
+    pts.push({x:x1,z:lane});
+    r.pts=pts; r.i=1; r.wait=0; r.g.visible=true;
+    r.g.position.set(x0,0,lane); r.g.rotation.y=east?0:Math.PI;
+  }
+
+  function vehicleAhead(px,pz,hx,hz,self){
+    const obs=rigs.filter(o=>o!==self && o.g.visible).map(o=>o.g.position);
+    if(truck && truck.visible && self) obs.push(truck.position);
+    return obs.some(o=>{const dx=o.x-px,dz=o.z-pz;const along=dx*hx+dz*hz, lat=Math.abs(dx*hz-dz*hx);return along>.5&&along<11.5&&lat<2.2;});
+  }
+
+  function updateRigs(dt){
+    rigs.forEach(r=>{
+      if(r.wait>0){r.wait-=dt; if(r.wait<=0 && !r.pts) newRoute(r); return;}
+      if(!r.pts){newRoute(r);return;}
+      const tgt=r.pts[r.i], p=r.g.position;
+      const dx=tgt.x-p.x, dz=tgt.z-p.z, dist=Math.hypot(dx,dz);
+      const hx=dist?dx/dist:1, hz=dist?dz/dist:0;
+      turnTo(r.g,hx,hz,dt,tgt.turn?3:6);
+      if(!tgt.turn && vehicleAhead(p.x,p.z,hx,hz,r)) return;
+      const step=Math.min(dist,r.speed*dt*(tgt.turn?.5:1));
+      p.x+=hx*step; p.z+=hz*step;
+      if(dist-step<.02){
+        if(tgt.release) tgt.release.busy=null;
+        if(tgt.wait) r.wait=tgt.wait;
+        r.i++;
+        if(r.i>=r.pts.length){ newRoute(r); }
+      }
+    });
+  }
+
+  function makePerson(vest,hat,pants){
+    const g=new THREE.Group();
+    const pm=new THREE.MeshStandardMaterial({color:pants,roughness:.9});
+    const vm=new THREE.MeshStandardMaterial({color:vest,roughness:.6});
+    const hm=new THREE.MeshStandardMaterial({color:hat,roughness:.5});
+    const limb=(y,zo,h,w,m)=>{const piv=new THREE.Group();piv.position.set(0,y,zo);const mm=box(w,h,w,m);mm.position.y=-h/2;piv.add(mm);g.add(piv);return piv;};
+    const legL=limb(.82,.13,.82,.2,pm), legR=limb(.82,-.13,.82,.2,pm);
+    const torso=box(.34,.72,.52,vm); torso.position.y=1.18; g.add(torso);
+    const band=box(.36,.06,.54,new THREE.MeshBasicMaterial({color:0xe8ecea})); band.position.y=1.08; g.add(band);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.16,12,10),skinMat); head.position.y=1.7; head.castShadow=true; g.add(head);
+    const helm=new THREE.Mesh(new THREE.SphereGeometry(.19,12,8,0,Math.PI*2,0,Math.PI/2),hm); helm.position.y=1.74; g.add(helm);
+    const brim=new THREE.Mesh(new THREE.CylinderGeometry(.23,.23,.03,14),hm); brim.position.y=1.74; g.add(brim);
+    const armL=limb(1.5,.33,.62,.14,vm), armR=limb(1.5,-.33,.62,.14,vm);
+    const crate=box(.42,.32,.42,new THREE.MeshStandardMaterial({color:0xb48e57,roughness:.9})); crate.position.set(.44,1.12,0); crate.visible=false; g.add(crate);
+    scene.add(g);
+    return {g,legL,legR,armL,armR,crate};
+  }
+
+  function addWorker(pts,vest,hat,opt){
+    opt=opt||{};
+    const p=makePerson(vest,hat,opt.pants||0x2c3440);
+    p.g.position.set(pts[0][0],0,pts[0][1]);
+    people.push(Object.assign(p,{pts,i:1,wait:rnd(0,2.5),speed:opt.speed||1.5,carry:!!opt.carry,loaded:false,phase:Math.random()*6,waitR:opt.wait||[1,3]}));
+  }
+
+  function updatePeople(dt){
+    people.forEach(w=>{
+      let walking=false;
+      if(w.wait>0){w.wait-=dt;}
+      else{
+        const t=w.pts[w.i], p=w.g.position, dx=t[0]-p.x, dz=t[1]-p.z, dist=Math.hypot(dx,dz);
+        if(dist<.05){ w.wait=rnd(w.waitR[0],w.waitR[1]); w.i=(w.i+1)%w.pts.length; if(w.carry){w.loaded=!w.loaded; w.crate.visible=w.loaded;} }
+        else{ const hx=dx/dist,hz=dz/dist; turnTo(w.g,hx,hz,dt,8); const st=Math.min(dist,w.speed*dt); p.x+=hx*st; p.z+=hz*st; walking=true; }
+      }
+      if(walking){ w.phase+=dt*w.speed*5.2; const s=Math.sin(w.phase)*.55; w.legL.rotation.z=s; w.legR.rotation.z=-s; w.g.position.y=Math.abs(Math.cos(w.phase))*.04;
+        if(w.loaded){w.armL.rotation.z=w.armR.rotation.z=1.25;} else {w.armL.rotation.z=-s*.8; w.armR.rotation.z=s*.8;} }
+      else { w.legL.rotation.z*=.8; w.legR.rotation.z*=.8; w.g.position.y=0; if(!w.loaded){w.armL.rotation.z*=.8; w.armR.rotation.z*=.8;} }
+    });
+  }
+
+  function makeForklift(P,Q){
+    const g=new THREE.Group();
+    const bm=new THREE.MeshStandardMaterial({color:0xe0701a,roughness:.5,metalness:.2});
+    const dm=new THREE.MeshStandardMaterial({color:0x2b2f2e,roughness:.8});
+    const body=box(1.5,.8,1.1,bm); body.position.set(0,.7,0); g.add(body);
+    const cw=box(.45,.75,1.1,dm); cw.position.set(-.85,.75,0); g.add(cw);
+    [[-.55,.45],[-.55,-.45],[.5,.45],[.5,-.45]].forEach(([x,z])=>{const m=box(.07,1.2,.07,dm);m.position.set(x,1.7,z);g.add(m);});
+    const roof=box(1.2,.07,1,dm); roof.position.set(-.02,2.32,0); g.add(roof);
+    const drv=box(.3,.5,.4,new THREE.MeshStandardMaterial({color:0xf26b1d})); drv.position.set(-.2,1.35,0); g.add(drv);
+    const dh=new THREE.Mesh(new THREE.SphereGeometry(.14,10,8),skinMat); dh.position.set(-.2,1.75,0); g.add(dh);
+    const dhh=new THREE.Mesh(new THREE.SphereGeometry(.16,10,6,0,Math.PI*2,0,Math.PI/2),new THREE.MeshStandardMaterial({color:0xf2d21b})); dhh.position.set(-.2,1.8,0); g.add(dhh);
+    [-.35,.35].forEach(z=>{const m=box(.09,2.1,.09,dm);m.position.set(.82,1.05,z);g.add(m);});
+    const lift=new THREE.Group(); lift.position.y=.18; g.add(lift);
+    [-.25,.25].forEach(z=>{const f=box(.95,.05,.12,dm);f.position.set(1.35,0,z);lift.add(f);});
+    const load=new THREE.Group(); lift.add(load);
+    const pal=box(1,.14,1,new THREE.MeshStandardMaterial({color:0x8a6a45})); pal.position.set(1.35,.1,0); load.add(pal);
+    const cr=box(.9,.8,.9,new THREE.MeshStandardMaterial({color:0xb48e57,roughness:.9})); cr.position.set(1.35,.57,0); load.add(cr);
+    const wm=new THREE.MeshStandardMaterial({color:0x1b1d1c});
+    [[.45,.5],[.45,-.5],[-.55,.5],[-.55,-.5]].forEach(([x,z])=>{const w=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,.2,12),wm);w.rotation.x=Math.PI/2;w.position.set(x,.28,z);g.add(w);});
+    g.position.set(P.x,0,P.z); g.rotation.y=Math.atan2(-(Q.z-P.z),Q.x-P.x);
+    scene.add(g);
+    lifts.push({g,lift,load,P,Q,t:Math.random(),dirQ:true,wait:0,speed:2.6,len:Math.hypot(Q.x-P.x,Q.z-P.z)});
+  }
+
+  function updateLifts(dt){
+    lifts.forEach(L=>{
+      if(L.wait>0){L.wait-=dt;return;}
+      L.t+=(L.dirQ?1:-1)*dt*L.speed/L.len;
+      if(L.t>=1){L.t=1;L.dirQ=false;L.wait=1.4;L.load.visible=false;}
+      if(L.t<=0){L.t=0;L.dirQ=true;L.wait=1.8;L.load.visible=true;}
+      L.g.position.set(L.P.x+(L.Q.x-L.P.x)*L.t,0,L.P.z+(L.Q.z-L.P.z)*L.t);
+      L.lift.position.y=L.load.visible?.34:.18;
+    });
+  }
+
+  function ship(){
+    const g=new THREE.Group(); g.position.set(-74,0,-2); scene.add(g);
+    const hull=box(9,3.2,46,new THREE.MeshStandardMaterial({color:0x2c3e57,roughness:.7})); hull.position.y=.9; g.add(hull);
+    const deck=box(8.6,.3,45,new THREE.MeshStandardMaterial({color:0x7a1f1f,roughness:.8})); deck.position.y=2.6; g.add(deck);
+    const sup=box(7,6,5,new THREE.MeshStandardMaterial({color:0xe9ecea,roughness:.6})); sup.position.set(0,5.6,19); g.add(sup);
+    const cols=[0xa6483a,0x2f5d8a,0x3f7a4f,0xb7862d,0x6b5a8e,0x8a8f8c]; let k=0;
+    for(let z=-19;z<=13;z+=3.2) for(let c=0;c<3;c++){const n=1+((k*5+c)%2);for(let l=0;l<n;l++){
+      const m=box(2.5,2.35,2.9,new THREE.MeshStandardMaterial({color:cols[k++%cols.length],roughness:.8}));m.position.set(-2.8+c*2.8,3.95+l*2.4,z);g.add(m);}}
+  }
+
+  function buildAmbient(){
+    skinMat=new THREE.MeshStandardMaterial({color:0xd9a77f,roughness:.8});
+    ship();
+    const rigSpec=[[0xb8322a,0x9a4436,true,-44],[0x2e6fb0,0x2f5d8a,true,6],[0xeeeeee,0x8a8f8c,false,62],[0x2f7d4f,0xb7862d,false,-8]];
+    rigSpec.forEach(([cab,cont,east,x])=>{const r={g:makeRig(cab,cont),speed:rnd(8.5,11.5),pts:null,wait:0}; rigs.push(r); newRoute(r,east,x);});
+    const ORANGE=0xf26b1d, LIME=0xc6e23a, NAVY=0x1f2a44, WHITE=0xf4f4f0, YELLOW=0xf2d21b;
+    const A=SITES.A1, B=SITES.B1, C=SITES.C1, D=SITES.D1;
+    // kontrol eden işçiler (sol tarafta, tablet/evrak)
+    [A,B,C,D].forEach((s,i)=>addWorker([[s.x-4.6,-9.6],[s.x-4.6,-6.2],[s.x-6.9,-8]],i%2?ORANGE:LIME,WHITE,{speed:1.1,wait:[2,4.5]}));
+    // kutu taşıyan işçiler (forklift olmayan antrepolarda)
+    [B,D].forEach(s=>addWorker([[s.x+3.7,-6.6],[s.x+1.9,-10]],ORANGE,YELLOW,{carry:true,speed:1.6,wait:[.8,1.6]}));
+    // forkliftler
+    [A,C].forEach(s=>makeForklift(new THREE.Vector3(s.x+3.5,0,-3.3),new THREE.Vector3(s.x+2.1,0,-9.6)));
+    // gümrük memurları
+    OFFICES.forEach(o=>addWorker([[o.x+3.6,11.3],[o.x+6.4,10.4],[o.x+7.2,7.2]],NAVY,NAVY,{pants:0x1a2233,speed:1.2,wait:[2.5,5]}));
+    // liman işçileri
+    addWorker([[-52,-9],[-52,7]],ORANGE,YELLOW,{speed:1.4,wait:[2,4]});
+    addWorker([[-50,14],[-53.5,21]],LIME,WHITE,{speed:1.3,wait:[1.5,3.5]});
+  }
+
+  function drawStock(id,lines){
+    const site=sites[id]; if(!site) return;
+    const {ctx:g,canvas:c,tex}=site.st, s=site.s;
+    const rows=Math.max(lines.length,1), H=86+rows*46+14;
+    c.width=512; c.height=H; g.clearRect(0,0,512,H);
+    g.fillStyle="rgba(18,24,22,.86)"; roundRect(g,4,4,504,H-8,20); g.fill();
+    g.fillStyle=css("--t"+s.type); roundRect(g,22,22,52,52,10); g.fill();
+    g.fillStyle="#fff"; g.font=`700 44px ${FONT}`; g.textAlign="center"; g.textBaseline="middle"; g.fillText(s.type,48,51);
+    g.textAlign="left"; g.font=`700 38px ${FONT}`; g.fillText(s.name.replace(/ (A\.Ş\.|Ltd\.)$/,""),90,40);
+    g.fillStyle="#b9c6c1"; g.font=`500 22px ${MONO}`; g.fillText("STOK KAYDI",90,70);
+    g.font=`500 26px ${MONO}`;
+    if(!lines.length){ g.fillStyle="#97a49f"; g.fillText("Kayıtlı eşya yok",28,86+30); }
+    lines.forEach((l,i)=>{const y=86+i*46+28, q=fmt(l[1])+" "+l[2];
+      let fs=26; g.font=`500 ${fs}px ${MONO}`;
+      while(fs>16 && g.measureText(l[0]).width+g.measureText(q).width+24>458){fs--; g.font=`500 ${fs}px ${MONO}`;}
+      g.fillStyle="#e3eae7"; g.textAlign="left"; g.fillText(l[0],28,y);
+      g.textAlign="right"; g.fillStyle="#fff"; g.fillText(q,486,y);});
+    g.textAlign="left";
+    const tex2=new THREE.CanvasTexture(c); tex2.anisotropy=4; site.sprite.material.map.dispose(); site.sprite.material.map=tex2; site.sprite.material.needsUpdate=true; site.st.tex=tex2;
+    const wU=12.5; site.sprite.scale.set(wU,wU*H/512,1); site.sprite.position.y=9.6+wU*H/512/2;
+    // yığınlar
+    while(site.yard.children.length) site.yard.remove(site.yard.children[0]);
+    const pm=new THREE.MeshStandardMaterial({color:0xb48e57,roughness:.9}), pal=new THREE.MeshStandardMaterial({color:0x8a6a45,roughness:1});
+    const n=Math.min(lines.length*2,12);
+    for(let i=0;i<n;i++){const col=i%3,row=Math.floor(i/3);const gx=4.4+col*1.45,gz=6.6+row*1.45;
+      const p=box(1.25,.18,1.25,pal);p.position.set(gx,.09,gz);site.yard.add(p);
+      const hgt=1+((i*7)%3)*.35; const bx=box(1.1,hgt,1.1,pm); bx.position.set(gx,.18+hgt/2,gz); site.yard.add(bx);}
+  }
+
+  function dock(id){const s=SITES[id];return new THREE.Vector3(s.x,0,-5.6);}
+  function siteCenter(id){const s=SITES[id];return new THREE.Vector3(s.x,0,s.z+4);}
+
+  function focus(ids,cb){
+    if(!ok){cb&&cb();return;}
+    const pts=ids.map(siteCenter); const c=new THREE.Vector3(); pts.forEach(p=>c.add(p)); c.divideScalar(pts.length);
+    let spread=0; pts.forEach(p=>spread=Math.max(spread,p.distanceTo(c)));
+    const portrait = camera.aspect<1.3;
+    const dist=Math.min(150,Math.max(34,spread*(portrait?2.4:1.5)+30));
+    const toT=c.clone(); const toP=c.clone().add(new THREE.Vector3(dist*.22,dist*.68,dist*.78));
+    if(reduceMotion){controls.target.copy(toT);camera.position.copy(toP);controls.update();cb&&cb();return;}
+    tween={fp:camera.position.clone(),ft:controls.target.clone(),tp:toP,tt:toT,t:0,dur:1.3,cb};
+  }
+
+  function highlight(ids){
+    Object.values(sites).forEach(s=>{s.ring.visible=false;});
+    ringsOn=ids.map(id=>sites[id]).filter(Boolean);
+    ringsOn.forEach((s,i)=>{s.ring.visible=true; s.ringMat.color.set(i===0?css("--accent"):css("--ok"));});
+  }
+
+  function placeTruck(id,cargo){
+    if(!ok) return;
+    const p=dock(id); truck.position.copy(p); truck.rotation.y=-Math.PI/2; truck.visible=true;
+    setTruckLabel(fmt(cargo.qty)+" "+cargo.unit+" "+cargo.name.toLocaleLowerCase("tr-TR"),"Yükleme rampasında","wait");
+  }
+
+  function startDrive(from,to,cargo,cb){
+    if(!ok){cb&&cb();return;}
+    const a=dock(from), b=dock(to); const lane=a.x<b.x?LANE_E:LANE_W;
+    const pts=[a,new THREE.Vector3(a.x,0,lane),new THREE.Vector3(b.x,0,lane),b];
+    const seg=[]; let L=0; for(let i=0;i<pts.length-1;i++){const d=pts[i].distanceTo(pts[i+1]); seg.push(d); L+=d;}
+    truck.visible=true;
+    setTruckLabel(fmt(cargo.qty)+" "+cargo.unit+" "+cargo.name.toLocaleLowerCase("tr-TR"),"Mühürlü · yolda","wait");
+    drive={pts,seg,L,s:0,cargo,cb};
+    if(reduceMotion) finish();
+  }
+
+  function finish(){
+    if(tween){camera.position.copy(tween.tp);controls.target.copy(tween.tt);const cb=tween.cb;tween=null;controls.update();cb&&cb();}
+    if(drive){drive.s=drive.L; stepDrive(0);}
+  }
+
+  function stepDrive(dt){
+    const d=drive;
+    if(dt>0 && d.s>d.seg[0] && d.s<d.seg[0]+d.seg[1]){
+      const hx=Math.sign(d.pts[2].x-d.pts[1].x)||1;
+      if(vehicleAhead(truck.position.x,truck.position.z,hx,0,null)) return;
+    }
+    d.s=Math.min(d.L,d.s+dt*17);
+    let s=d.s,i=0; while(i<d.seg.length-1 && s>d.seg[i]){s-=d.seg[i];i++;}
+    const a=d.pts[i],b=d.pts[i+1]; const t=d.seg[i]?Math.min(1,s/d.seg[i]):1;
+    const prev=truck.position.clone();
+    truck.position.lerpVectors(a,b,t);
+    const dir=new THREE.Vector3().subVectors(b,a); if(dir.lengthSq()>0) truck.rotation.y=Math.atan2(-dir.z,dir.x);
+    if(!tween){const delta=truck.position.clone().sub(prev).multiplyScalar(.85); controls.target.add(delta); camera.position.add(delta);}
+    if(d.s>=d.L){ drive=null; truck.rotation.y=Math.PI/2;
+      setTruckLabel(fmt(d.cargo.arrive??d.cargo.qty)+" "+d.cargo.unit+" "+d.cargo.name.toLocaleLowerCase("tr-TR"),"Varışta · kayıt bekliyor","wait");
+      d.cb&&d.cb(); }
+  }
+
+  function delivered(cargo,qty){
+    if(!ok) return;
+    setTruckLabel(fmt(qty)+" "+cargo.unit+" "+cargo.name.toLocaleLowerCase("tr-TR"),"Stoka kaydedildi","ok");
+  }
+
+  function showDeny(id,cargo){
+    if(!ok) return; const s=SITES[id];
+    deny.position.set(s.x,10.5,s.z+9); deny.visible=true;
+    barrier.position.set(s.x,0,-3.2); barrier.visible=true;
+    if(truck.visible && cargo) setTruckLabel(fmt(cargo.qty)+" "+cargo.unit+" "+cargo.name.toLocaleLowerCase("tr-TR"),"Talep reddedildi","bad");
+  }
+
+  function clear(){ if(!ok) return; deny.visible=false; barrier.visible=false; drive=null; }
+
+  function applyTheme(){
+    if(!scene) return;
+    const sky=new THREE.Color(css("--scene-sky"));
+    scene.background=sky; scene.fog=new THREE.Fog(sky,140,320);
+    mats.ground.color.set(css("--scene-ground")); mats.road.color.set(css("--scene-road")); mats.sea.color.set(css("--scene-sea"));
+    mats.wall.forEach(m=>m.color.set(css("--scene-wall"))); mats.roof.forEach(m=>m.color.set(css("--scene-roof")));
+    mats.office.forEach(m=>m.color.set(css("--scene-office")));
+    mats.zone.forEach(m=>m.color.set(css("--scene-zone")));
+    ["A","B","C","D"].forEach(t=>mats.band[t].forEach(m=>m.color.set(css("--t"+t))));
+    const dark=sky.getHSL({}).l<.3;
+    hemi.intensity=dark?.55:.78; sun.intensity=dark?.55:.85;
+    hemi.color.set(dark?0xb8c8d8:0xffffff); hemi.groundColor.set(dark?0x1a1f1d:0x5a5a52);
+    ringsOn.forEach((s,i)=>s.ringMat.color.set(i===0?css("--accent"):css("--ok")));
+  }
+
+  function loop(){
+    requestAnimationFrame(loop);
+    const dt=Math.min(clock.getDelta(),.05), t=clock.elapsedTime;
+    if(tween){tween.t+=dt/tween.dur; const k=tween.t>=1?1:1-Math.pow(1-tween.t,3);
+      camera.position.lerpVectors(tween.fp,tween.tp,k); controls.target.lerpVectors(tween.ft,tween.tt,k);
+      if(tween.t>=1){const cb=tween.cb; tween=null; cb&&cb();}}
+    if(drive) stepDrive(dt);
+    if(!reduceMotion){ updateRigs(dt); updatePeople(dt); updateLifts(dt); }
+    ringsOn.forEach((s,i)=>{s.ringMat.opacity=reduceMotion?.55:.42+.28*Math.sin(t*3+i*1.4);});
+    if(!reduceMotion) officeFlags.forEach((f,i)=>{f.rotation.y=Math.sin(t*1.6+i)*.25;});
+    controls.update(); renderer.render(scene,camera);
+  }
+
+  return {init,focus,highlight,placeTruck,drive:startDrive,finish,delivered,deny:showDeny,clear,drawStock,applyTheme,ok:()=>ok};
+})();
+
+/* ================= Quiz / akış ================= */
+const panel=document.getElementById("panel");
+const state={ci:0,si:0,score:0,results:CASES.map(c=>c.steps.map(()=>null)),stock:cloneStock(INITIAL_STOCK),answered:false,done:false};
+
+function stockRemove(id,name){state.stock[id]=state.stock[id].filter(l=>l[0]!==name); Scene.drawStock(id,state.stock[id]);}
+function stockAdd(id,name,qty,unit){const ex=state.stock[id].find(l=>l[0]===name); if(ex) ex[1]=qty; else state.stock[id].push([name,qty,unit]); Scene.drawStock(id,state.stock[id]);}
+function drawAllStock(){Object.keys(SITES).forEach(id=>Scene.drawStock(id,state.stock[id]));}
+
+function siteChip(id){const s=SITES[id];return `<div class="end"><span class="chip ${s.type}">${s.type}</span><div><b>${s.name}</b><small>${s.type} tipi ${s.kind.toLocaleLowerCase("tr-TR")} · ${s.admin}</small></div></div>`;}
+
+function renderProgress(){
+  const el=document.getElementById("progress");
+  el.innerHTML=CASES.map((c,i)=>{const r=state.results[i];const done=r.every(x=>x!==null);const all=done&&r.every(Boolean);
+    const cls=(!state.done&&i===state.ci)?"cur":done?(all?"done":"part"):""; return `<span class="${cls}" title="Vaka ${i+1}: ${c.title}"></span>`;}).join("");
+  document.getElementById("score").textContent=state.score;
+  document.getElementById("scoreMax").textContent="/ "+TOTAL_Q*POINTS;
+}
+
+function renderStep(){
+  const c=CASES[state.ci], st=c.steps[state.si];
+  const facts=c.facts.map(f=>`<dt>${f[0]}</dt><dd class="${f[2]||""}">${f[1]}</dd>`).join("");
+  panel.innerHTML=`
+   <section class="case">
+     <p class="eyebrow">Vaka ${state.ci+1} / ${CASES.length}</p>
+     <h2>${c.title}</h2>
+     <p class="summary">${c.summary}</p>
+     <div class="route" aria-label="Nakil güzergâhı">${siteChip(c.from)}<span class="arrow" aria-hidden="true">→</span>${siteChip(c.to)}</div>
+     <dl class="facts">${facts}</dl>
+   </section>
+   <section class="question">
+     <p class="qnum">Soru ${state.si+1} / ${c.steps.length}</p>
+     <p class="qtext">${st.q}</p>
+     <ol class="opts">${st.opts.map((o,i)=>`<li><button class="opt" type="button" id="opt-${state.ci}-${state.si}-${i}" data-i="${i}"><span class="k">${"abcd"[i]})</span><span>${o[0]}</span></button></li>`).join("")}</ol>
+     <div class="feedback" id="fb" aria-live="polite" hidden></div>
+   </section>`;
+  panel.querySelectorAll(".opt").forEach(b=>b.addEventListener("click",()=>answer(+b.dataset.i)));
+  panel.scrollTop=0;
+  state.answered=false;
+  renderProgress();
+}
+
+function refHTML(k){const r=REFS[k];return `<figure class="ref"><figcaption><b>${r.code}</b> · ${r.title}</figcaption><blockquote>${r.text}</blockquote></figure>`;}
+
+function answer(i){
+  if(state.answered) return; state.answered=true;
+  const c=CASES[state.ci], st=c.steps[state.si];
+  const correct=st.opts.findIndex(o=>o[1]); const isOk=i===correct;
+  state.results[state.ci][state.si]=isOk; if(isOk) state.score+=POINTS;
+  panel.querySelectorAll(".opt").forEach((b,j)=>{b.disabled=true; if(j===correct) b.classList.add("right"); else if(j===i) b.classList.add("wrong"); else b.classList.add("dim");});
+  const lastStep=state.si===c.steps.length-1, lastCase=state.ci===CASES.length-1;
+  const label=!lastStep?"Sonraki soru":lastCase?"Sonucu gör":"Sonraki vaka";
+  const why=isOk?st.opts[i][2]:`${st.opts[i][2]} Doğru cevap ${"abcd"[correct]}): ${st.opts[correct][2]}`;
+  const fb=document.getElementById("fb");
+  fb.innerHTML=`<p class="verdict ${isOk?"ok":"err"}">${isOk?"✓ Doğru":"✕ Yanlış"}</p><p class="why">${why}</p>${st.refs.map(refHTML).join("")}
+    <div class="fb-actions"><span class="status" id="status"></span><button class="primary" type="button" id="nextBtn">${label}</button></div>`;
+  fb.hidden=false;
+  document.getElementById("nextBtn").addEventListener("click",next);
+  runAfter(st.after);
+  renderProgress();
+  try{fb.scrollIntoView({block:"nearest",behavior:reduceMotion?"auto":"smooth"});}catch(e){}
+  document.getElementById("nextBtn").focus({preventScroll:true});
+}
+
+function setStatus(t){const el=document.getElementById("status"); if(el) el.textContent=t;}
+
+function runAfter(kind){
+  const c=CASES[state.ci];
+  if(kind==="drive"){ stockRemove(c.from,c.cargo.name); setStatus("Kamyon mühürlü olarak varış antreposuna gidiyor…");
+    Scene.drive(c.from,c.to,c.cargo,()=>setStatus("Kamyon varış antreposunun rampasında.")); }
+  if(kind==="stock"){ Scene.finish(); const q=c.arriveQty??c.cargo.qty; stockAdd(c.to,c.cargo.name,q,c.cargo.unit); Scene.delivered(c.cargo,q);
+    setStatus(`Eşya ${SITES[c.to].name} stok kayıtlarına geçti.`); }
+  if(kind==="deny"){ Scene.deny(c.to,c.cargo); setStatus("Talep reddedildi. Eşya Körfez Lojistik'te kalıyor."); }
+}
+
+function next(){
+  Scene.finish();
+  const c=CASES[state.ci];
+  if(state.si<c.steps.length-1){state.si++; renderStep(); return;}
+  if(state.ci<CASES.length-1){state.ci++; state.si=0; enterCase(); return;}
+  state.done=true; renderResult();
+}
+
+function enterCase(){
+  const c=CASES[state.ci];
+  state.answered=false;
+  Scene.clear();
+  Scene.highlight([c.from,c.to]);
+  Scene.placeTruck(c.from,c.cargo);
+  const cargo=Object.assign({},c.cargo,{arrive:c.arriveQty});
+  if(c.enterDrive) stockRemove(c.from,c.cargo.name);
+  renderStep();
+  Scene.focus([c.from,c.to],()=>{ if(c.enterDrive) Scene.drive(c.from,c.to,cargo); });
+}
+
+function renderResult(){
+  renderProgress();
+  const rows=CASES.map((c,i)=>{const r=state.results[i];return `<tr><td>${i+1}. ${c.title}</td><td>${r.filter(Boolean).length} / ${r.length}</td></tr>`;}).join("");
+  const missed=[]; CASES.forEach((c,i)=>c.steps.forEach((s,j)=>{if(state.results[i][j]===false) s.refs.forEach(k=>{if(!missed.includes(k)) missed.push(k);});}));
+  const correct=state.results.flat().filter(Boolean).length;
+  panel.innerHTML=`<section class="result">
+     <p class="eyebrow">Sonuç</p>
+     <h2>${state.score} / ${TOTAL_Q*POINTS} puan</h2>
+     <p class="summary">${TOTAL_Q} sorudan ${correct} tanesini doğru cevapladın.</p>
+     <table><tbody>${rows}</tbody></table>
+     <h3>${missed.length?"Tekrar okunacak hükümler":"Tüm hükümler doğru uygulandı"}</h3>
+     ${missed.length?`<div class="linklist">${missed.map(k=>`<button type="button" data-ref="${k}">${REFS[k].code}</button>`).join("")}</div>`:""}
+     <h3>Not</h3>
+     <p class="note">Şirket ve gümrük müdürlüğü adları, fire oranı ve süre tahdidi örnek değerlerdir. Mevzuat metinleri 2027gmynot deposundaki GUMRUK_MEVZUATI_TUMU.md dosyasından alınmıştır.</p>
+     <p style="margin-top:18px"><button class="primary" type="button" id="restart">Baştan başla</button></p>
+   </section>`;
+  panel.querySelectorAll("[data-ref]").forEach(b=>b.addEventListener("click",()=>openRefs(b.dataset.ref)));
+  document.getElementById("restart").addEventListener("click",restart);
+  panel.scrollTop=0;
+  Scene.highlight([]); Scene.focus(Object.keys(SITES));
+}
+
+function restart(){
+  state.ci=0; state.si=0; state.score=0; state.done=false; state.answered=false;
+  state.results=CASES.map(c=>c.steps.map(()=>null)); state.stock=cloneStock(INITIAL_STOCK);
+  drawAllStock(); enterCase();
+}
+
+/* ---------- Dayanaklar penceresi ---------- */
+const sheet=document.getElementById("refs"), refsBody=document.getElementById("refsBody");
+refsBody.innerHTML=Object.keys(REFS).map(k=>`<div id="ref-${k}">${refHTML(k)}</div>`).join("")+
+  `<p class="note">Kaynak: 2027gmynot/GUMRUK_MEVZUATI_TUMU.md. […] işareti, kaynak dosyada atfedilen madde numarasının yer almadığı yerleri gösterir.</p>`;
+let lastFocus=null;
+function openRefs(k){
+  lastFocus=document.activeElement; sheet.hidden=false; document.getElementById("refsClose").focus();
+  refsBody.querySelectorAll(".ref").forEach(r=>r.classList.remove("flash"));
+  if(k){const el=document.getElementById("ref-"+k); if(el){el.firstElementChild.classList.add("flash"); el.scrollIntoView({block:"center"});}}
+}
+function closeRefs(){sheet.hidden=true; if(lastFocus) lastFocus.focus({preventScroll:true});}
+document.getElementById("refsBtn").addEventListener("click",()=>openRefs());
+document.getElementById("refsClose").addEventListener("click",closeRefs);
+sheet.addEventListener("click",e=>{if(e.target===sheet) closeRefs();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!sheet.hidden) closeRefs();});
+
+/* ---------- Tema ---------- */
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",()=>Scene.applyTheme());
+new MutationObserver(()=>Scene.applyTheme()).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+
+/* ---------- Başlat ---------- */
+function start(data){
+  const fontsReady = (document.fonts && document.fonts.ready) ? Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,1500))]) : Promise.resolve();
+  fontsReady.then(()=>{
+    const ok=Scene.init(document.getElementById("scene"),document.getElementById("stage"));
+    if(!ok) document.getElementById("nogl").hidden=false;
+    if(data && typeof data.ci==="number" && data.stock){
+      Object.assign(state,{ci:data.ci,si:0,score:data.score||0,results:data.results||state.results,stock:data.stock,done:false});
+      CASES[state.ci].steps.forEach((s,j)=>{ if(state.results[state.ci][j]===true) state.score-=POINTS; state.results[state.ci][j]=null; });
+      const c=CASES[state.ci]; if(!state.stock[c.from].some(l=>l[0]===c.cargo.name)) state.stock[c.from].push([c.cargo.name,c.cargo.qty,c.cargo.unit]);
+      state.stock[c.to]=state.stock[c.to].filter(l=>!(l[0]===c.cargo.name));
+    }
+    drawAllStock();
+    enterCase();
+  });
+}
+try{ window.claude?.hot?.snapshot?.(()=>({ci:state.ci,score:state.score,results:state.results,stock:state.stock})); }catch(e){}
+if(window.claude?.hot?.ready) window.claude.hot.ready(start); else start(window.claude?.hot?.data ?? {});
+})();
+</script>
+
+</body>
+</html>
